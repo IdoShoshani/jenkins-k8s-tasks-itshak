@@ -71,23 +71,26 @@ pipeline {
                     patch += 1
 
                     // Set the new version
-                    env.VERSION = "${major}.${minor}.${patch}"
+                    env.VERSION = "${major}.${minor}.${patch}-${env.BUILD_NUMBER}"
                     echo "New Version: ${env.VERSION}"
 
                     // Save the new version back to version.txt
                     writeFile file: versionFile, text: env.VERSION
 
-                    // Commit the updated version.txt to Git
-                    sh """
-                        git config --global user.email "ci@jenkins"
-                        git config --global user.name "Jenkins CI"
-                        git add ${versionFile}
-                        git commit -m "Update version to ${env.VERSION}" || echo "No changes to commit"
-                        git push origin 3-create-jenkins-pipeline
-                    """
+                    // Commit the updated version.txt to Git with credentials
+                    withCredentials([usernamePassword(credentialsId: 'github-creds-pat', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+                        sh """
+                            git config --global user.email "ci@jenkins"
+                            git config --global user.name "Jenkins CI"
+                            git add ${versionFile}
+                            git commit -m "Update version to ${env.VERSION}" || echo "No changes to commit"
+                            git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git 3-create-jenkins-pipeline
+                        """
+                    }
                 }
             }
         }
+
         
         stage('Login to DockerHub') {
             steps {
