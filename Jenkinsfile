@@ -8,7 +8,7 @@ pipeline {
                   labels:
                     jenkins: agent
                 spec:
-                  serviceAccountName: jenkins
+                  serviceAccountName: helm-service-account
                   containers:
                   - name: docker-container
                     image: idoshoshani123/docker_and_helm:latest
@@ -150,7 +150,8 @@ pipeline {
                         helm upgrade --install ${RELEASE_NAME} ${CHART_DIRECTORY} \
                             --set pythonApp.container.tag=${VERSION} \
                             --set nodeApp.container.tag=${VERSION} \
-                            --set goApp.container.tag=${VERSION}
+                            --set goApp.container.tag=${VERSION} \
+                            --namespace default
                     """
                 }
             }
