@@ -10,7 +10,7 @@ pipeline {
                 spec:
                   containers:
                   - name: docker-container
-                    image: idoshoshani123/docker-dnd-aks:latest
+                    image: idoshoshani123/docker_and_helm:latest
                     command:
                     - sleep
                     args:
