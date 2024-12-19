@@ -31,8 +31,8 @@ pipeline {
     
     environment {
         DOCKERHUB_CREDENTIALS = credentials('docker-creds')
-        VERSION = sh(script: 'date +%Y.%m.%d.%H%M', returnStdout: true).trim()
         DOCKER_USERNAME = 'idoshoshani123'
+        CHART_DIRECTORY = "./helm-charts"
     }
     
     stages {
@@ -44,68 +44,84 @@ pipeline {
             }
         }
 
+        stage('Version Management') {
+            steps {
+                script {
+                    // Read and increment version
+                    def versionFile = "${CHART_DIRECTORY}/version.txt"
+                    def version = fileExists(versionFile) ? readFile(versionFile).trim() : "1.0.0"
+                    
+                    def (major, minor, patch) = version.tokenize('.').collect { it as int }
+                    patch += 1 // Increment patch version by default
+                    env.NEW_VERSION = "${major}.${minor}.${patch}"
+
+                    // Save new version back to file
+                    writeFile file: versionFile, text: env.NEW_VERSION
+                }
+            }
+        }
+
         stage('Login to DockerHub') {
             steps {
                 sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
             }
         }
         
-        stage('Build Images') {
+        stage('Build and Push Images') {
             parallel {
-                stage('Build Python App') {
+                stage('Python App') {
                     steps {
                         dir('python-app') {
-                            sh """
-                                docker build -t ${DOCKER_USERNAME}/python-app:${VERSION} .
-                                docker tag ${DOCKER_USERNAME}/python-app:${VERSION} ${DOCKER_USERNAME}/python-app:latest
-                            """
+                            script {
+                                sh """
+                                    docker build -t ${DOCKER_USERNAME}/python-app:${NEW_VERSION} .
+                                    docker push ${DOCKER_USERNAME}/python-app:${NEW_VERSION}
+                                    docker tag ${DOCKER_USERNAME}/python-app:${NEW_VERSION} ${DOCKER_USERNAME}/python-app:latest
+                                    docker push ${DOCKER_USERNAME}/python-app:latest
+                                """
+                            }
                         }
                     }
                 }
-                
-                stage('Build Node App') {
+                stage('Node App') {
                     steps {
                         dir('node-app') {
-                            sh """
-                                docker build -t ${DOCKER_USERNAME}/node-app:${VERSION} .
-                                docker tag ${DOCKER_USERNAME}/node-app:${VERSION} ${DOCKER_USERNAME}/node-app:latest
-                            """
+                            script {
+                                sh """
+                                    docker build -t ${DOCKER_USERNAME}/node-app:${NEW_VERSION} .
+                                    docker push ${DOCKER_USERNAME}/node-app:${NEW_VERSION}
+                                    docker tag ${DOCKER_USERNAME}/node-app:${NEW_VERSION} ${DOCKER_USERNAME}/node-app:latest
+                                    docker push ${DOCKER_USERNAME}/node-app:latest
+                                """
+                            }
                         }
                     }
                 }
-                
-                stage('Build Go App') {
+                stage('Go App') {
                     steps {
                         dir('go-app') {
-                            sh """
-                                docker build -t ${DOCKER_USERNAME}/go-app:${VERSION} .
-                                docker tag ${DOCKER_USERNAME}/go-app:${VERSION} ${DOCKER_USERNAME}/go-app:latest
-                            """
+                            script {
+                                sh """
+                                    docker build -t ${DOCKER_USERNAME}/go-app:${NEW_VERSION} .
+                                    docker push ${DOCKER_USERNAME}/go-app:${NEW_VERSION}
+                                    docker tag ${DOCKER_USERNAME}/go-app:${NEW_VERSION} ${DOCKER_USERNAME}/go-app:latest
+                                    docker push ${DOCKER_USERNAME}/go-app:latest
+                                """
+                            }
                         }
                     }
                 }
             }
         }
         
-        stage('Push Images') {
+        stage('Deploy with Helm') {
             steps {
                 script {
-                    // Push Python App
                     sh """
-                        docker push ${DOCKER_USERNAME}/python-app:${VERSION}
-                        docker push ${DOCKER_USERNAME}/python-app:latest
-                    """
-                    
-                    // Push Node App
-                    sh """
-                        docker push ${DOCKER_USERNAME}/node-app:${VERSION}
-                        docker push ${DOCKER_USERNAME}/node-app:latest
-                    """
-                    
-                    // Push Go App
-                    sh """
-                        docker push ${DOCKER_USERNAME}/go-app:${VERSION}
-                        docker push ${DOCKER_USERNAME}/go-app:latest
+                        helm upgrade --install helm-charts ${CHART_DIRECTORY} \
+                            --set pythonApp.container.tag=${NEW_VERSION} \
+                            --set nodeApp.container.tag=${NEW_VERSION} \
+                            --set goApp.container.tag=${NEW_VERSION}
                     """
                 }
             }
@@ -120,7 +136,7 @@ pipeline {
             echo 'Pipeline failed! Check the logs for details.'
         }
         success {
-            echo "Successfully built and pushed version: ${VERSION}"
+            echo "Successfully built, pushed, and deployed version: ${NEW_VERSION}"
         }
     }
 }

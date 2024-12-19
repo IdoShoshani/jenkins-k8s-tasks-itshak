@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: {{ .Values.goApp.labels.app | default "go-app" }}
+  name: {{ .Values.goApp.name | default "go-app" }}
+spec:
+  containers:
+    - image: "{{ .Values.goApp.container.image | required "container.image is required" }}:{{ .Values.goApp.container.tag | default "latest" }}"
+      name: {{ .Values.goApp.container.name | default "go-app" }}
+      ports:
+        - containerPort: {{ .Values.goApp.container.port | default 8080 }}
+      resources:
+{{ toYaml .Values.goApp.container.resources | default "{}" | nindent 8 }}

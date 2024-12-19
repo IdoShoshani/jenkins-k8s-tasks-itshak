@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: {{ .Values.nodeApp.labels.app | default "node-app" }}
+  name: {{ .Values.nodeApp.name | default "node-app" }}
+spec:
+  containers:
+    - image: "{{ .Values.nodeApp.container.image | required "nodeApp.container.image is required" }}:{{ .Values.nodeApp.container.tag | default "latest" }}"
+      name: {{ .Values.nodeApp.container.name | default "node-app" }}
+      ports:
+        - containerPort: {{ .Values.nodeApp.container.port | default 3000 }}
+      resources:
+{{ toYaml .Values.nodeApp.container.resources | default "{}" | nindent 8 }}
