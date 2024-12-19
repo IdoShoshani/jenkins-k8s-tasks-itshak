@@ -79,12 +79,11 @@ pipeline {
                 writeFile file: versionFile, text: env.VERSION
 
                 sh """
-                    set -x
-                    yq -i '.goApp.container.tag = "\${VERSION}"' ${CHART_DIRECTORY}/values.yaml
-                    yq -i '.pythonApp.container.tag = "\${VERSION}"' ${CHART_DIRECTORY}/values.yaml
-                    yq -i '.nodeApp.container.tag = "\${VERSION}"' ${CHART_DIRECTORY}/values.yaml
-                    yq -i '.appVersion = "\${VERSION}"' ${CHART_DIRECTORY}/Chart.yaml
-                    yq -i '.version = "\${VERSION}"' ${CHART_DIRECTORY}/Chart.yaml
+                    yq -i ".goApp.container.tag = \\"${VERSION}\\"" ${CHART_DIRECTORY}/values.yaml
+                    yq -i ".pythonApp.container.tag = \\"${VERSION}\\"" ${CHART_DIRECTORY}/values.yaml
+                    yq -i ".nodeApp.container.tag = \\"${VERSION}\\"" ${CHART_DIRECTORY}/values.yaml
+                    yq -i ".appVersion = \\"${VERSION}\\"" ${CHART_DIRECTORY}/Chart.yaml
+                    yq -i ".version = \\"${VERSION}\\"" ${CHART_DIRECTORY}/Chart.yaml
                 """
 
                 withCredentials([usernamePassword(credentialsId: 'github-creds-pat', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
