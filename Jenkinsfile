@@ -8,6 +8,7 @@ pipeline {
                   labels:
                     jenkins: agent
                 spec:
+                  serviceAccountName: jenkins
                   containers:
                   - name: docker-container
                     image: idoshoshani123/docker_and_helm:latest
@@ -163,10 +164,8 @@ pipeline {
             steps {
                 script {
                     sh """
-                        helm upgrade --install helm-charts ${CHART_DIRECTORY} \
-                            --set pythonApp.container.tag=${VERSION} \
-                            --set nodeApp.container.tag=${VERSION} \
-                            --set goApp.container.tag=${VERSION}
+                        helm upgrade --install my-app-release ${CHART_DIRECTORY} \
+                        --var
                     """
                 }
             }
