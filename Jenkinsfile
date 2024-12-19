@@ -44,9 +44,13 @@ pipeline {
             }
         }
 
+
         stage('Version Management') {
             steps {
                 script {
+                    // Add the workspace to Git's safe directory list
+                    sh 'git config --global --add safe.directory ${WORKSPACE}'
+
                     // Define the path to version.txt
                     def versionFile = "${CHART_DIRECTORY}/version.txt"
 
@@ -79,7 +83,7 @@ pipeline {
                         git config --global user.name "Jenkins CI"
                         git add ${versionFile}
                         git commit -m "Update version to ${env.VERSION}" || echo "No changes to commit"
-                        git push origin ${env.BRANCH_NAME}
+                        git push origin 3-create-jenkins-pipeline
                     """
                 }
             }
