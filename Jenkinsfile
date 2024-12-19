@@ -10,7 +10,7 @@ pipeline {
                 spec:
                   containers:
                   - name: docker-container
-                    image: docker:27.4-dind
+                    image: idoshoshani123/docker-dnd-aks:latest
                     command:
                     - sleep
                     args:
