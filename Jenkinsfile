@@ -38,7 +38,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main',
+                git branch: env.BRANCH_NAME,
                     url: 'https://github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git',
                     credentialsId: 'github-creds-pat'
             }
@@ -47,16 +47,40 @@ pipeline {
         stage('Version Management') {
             steps {
                 script {
-                    // Read and increment version
+                    // Define the path to version.txt
                     def versionFile = "${CHART_DIRECTORY}/version.txt"
-                    def version = fileExists(versionFile) ? readFile(versionFile).trim() : "1.0.0"
-                    
-                    def (major, minor, patch) = version.tokenize('.').collect { it as int }
-                    patch += 1 // Increment patch version by default
-                    env.NEW_VERSION = "${major}.${minor}.${patch}"
 
-                    // Save new version back to file
-                    writeFile file: versionFile, text: env.NEW_VERSION
+                    // Check if version.txt exists; if not, initialize it
+                    if (!fileExists(versionFile)) {
+                        echo "version.txt not found. Initializing with version 1.0.0."
+                        writeFile file: versionFile, text: "1.0.0"
+                    }
+
+                    // Read the current version
+                    def version = readFile(versionFile).trim()
+                    echo "Current Version: ${version}"
+
+                    // Split the version into major, minor, and patch
+                    def (major, minor, patch) = version.tokenize('.').collect { it as int }
+
+                    // Increment the patch version by default
+                    patch += 1
+
+                    // Set the new version
+                    env.VERSION = "${major}.${minor}.${patch}"
+                    echo "New Version: ${env.VERSION}"
+
+                    // Save the new version back to version.txt
+                    writeFile file: versionFile, text: env.VERSION
+
+                    // Commit the updated version.txt to Git
+                    sh """
+                        git config --global user.email "ci@jenkins"
+                        git config --global user.name "Jenkins CI"
+                        git add ${versionFile}
+                        git commit -m "Update version to ${env.VERSION}" || echo "No changes to commit"
+                        git push origin ${env.BRANCH_NAME}
+                    """
                 }
             }
         }
@@ -67,61 +91,75 @@ pipeline {
             }
         }
         
-        stage('Build and Push Images') {
+        stage('Build Images') {
             parallel {
-                stage('Python App') {
+                stage('Build Python App') {
                     steps {
                         dir('python-app') {
-                            script {
-                                sh """
-                                    docker build -t ${DOCKER_USERNAME}/python-app:${NEW_VERSION} .
-                                    docker push ${DOCKER_USERNAME}/python-app:${NEW_VERSION}
-                                    docker tag ${DOCKER_USERNAME}/python-app:${NEW_VERSION} ${DOCKER_USERNAME}/python-app:latest
-                                    docker push ${DOCKER_USERNAME}/python-app:latest
-                                """
-                            }
+                            sh """
+                                docker build -t ${DOCKER_USERNAME}/python-app:${VERSION} .
+                                docker tag ${DOCKER_USERNAME}/python-app:${VERSION} ${DOCKER_USERNAME}/python-app:latest
+                            """
                         }
                     }
                 }
-                stage('Node App') {
+                
+                stage('Build Node App') {
                     steps {
                         dir('node-app') {
-                            script {
-                                sh """
-                                    docker build -t ${DOCKER_USERNAME}/node-app:${NEW_VERSION} .
-                                    docker push ${DOCKER_USERNAME}/node-app:${NEW_VERSION}
-                                    docker tag ${DOCKER_USERNAME}/node-app:${NEW_VERSION} ${DOCKER_USERNAME}/node-app:latest
-                                    docker push ${DOCKER_USERNAME}/node-app:latest
-                                """
-                            }
+                            sh """
+                                docker build -t ${DOCKER_USERNAME}/node-app:${VERSION} .
+                                docker tag ${DOCKER_USERNAME}/node-app:${VERSION} ${DOCKER_USERNAME}/node-app:latest
+                            """
                         }
                     }
                 }
-                stage('Go App') {
+                
+                stage('Build Go App') {
                     steps {
                         dir('go-app') {
-                            script {
-                                sh """
-                                    docker build -t ${DOCKER_USERNAME}/go-app:${NEW_VERSION} .
-                                    docker push ${DOCKER_USERNAME}/go-app:${NEW_VERSION}
-                                    docker tag ${DOCKER_USERNAME}/go-app:${NEW_VERSION} ${DOCKER_USERNAME}/go-app:latest
-                                    docker push ${DOCKER_USERNAME}/go-app:latest
-                                """
-                            }
+                            sh """
+                                docker build -t ${DOCKER_USERNAME}/go-app:${VERSION} .
+                                docker tag ${DOCKER_USERNAME}/go-app:${VERSION} ${DOCKER_USERNAME}/go-app:latest
+                            """
                         }
                     }
                 }
             }
         }
         
+        stage('Push Images') {
+            steps {
+                script {
+                    // Push Python App
+                    sh """
+                        docker push ${DOCKER_USERNAME}/python-app:${VERSION}
+                        docker push ${DOCKER_USERNAME}/python-app:latest
+                    """
+                    
+                    // Push Node App
+                    sh """
+                        docker push ${DOCKER_USERNAME}/node-app:${VERSION}
+                        docker push ${DOCKER_USERNAME}/node-app:latest
+                    """
+                    
+                    // Push Go App
+                    sh """
+                        docker push ${DOCKER_USERNAME}/go-app:${VERSION}
+                        docker push ${DOCKER_USERNAME}/go-app:latest
+                    """
+                }
+            }
+        }
+
         stage('Deploy with Helm') {
             steps {
                 script {
                     sh """
                         helm upgrade --install helm-charts ${CHART_DIRECTORY} \
-                            --set pythonApp.container.tag=${NEW_VERSION} \
-                            --set nodeApp.container.tag=${NEW_VERSION} \
-                            --set goApp.container.tag=${NEW_VERSION}
+                            --set pythonApp.container.tag=${VERSION} \
+                            --set nodeApp.container.tag=${VERSION} \
+                            --set goApp.container.tag=${VERSION}
                     """
                 }
             }
@@ -136,7 +174,7 @@ pipeline {
             echo 'Pipeline failed! Check the logs for details.'
         }
         success {
-            echo "Successfully built, pushed, and deployed version: ${NEW_VERSION}"
+            echo "Successfully built, pushed, and deployed version: ${VERSION}"
         }
     }
 }
