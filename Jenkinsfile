@@ -44,9 +44,13 @@ pipeline {
             }
         }
 
+
         stage('Version Management') {
             steps {
                 script {
+                    // Add the workspace to Git's safe directory list
+                    sh 'git config --global --add safe.directory ${WORKSPACE}'
+
                     // Define the path to version.txt
                     def versionFile = "${CHART_DIRECTORY}/version.txt"
 
@@ -84,7 +88,7 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Login to DockerHub') {
             steps {
                 sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
