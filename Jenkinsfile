@@ -38,7 +38,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: env.BRANCH_NAME,
+                git branch: "3-create-jenkins-pipeline",
                     url: 'https://github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git',
                     credentialsId: 'github-creds-pat'
             }
