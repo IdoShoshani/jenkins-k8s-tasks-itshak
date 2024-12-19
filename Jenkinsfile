@@ -39,47 +39,68 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: "3-create-jenkins-pipeline",
+                git branch: "5-improved-jenkins-version-update",
                     url: 'https://github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git',
                     credentialsId: 'github-creds-pat'
             }
         }
 
-        stage('Version Management') {
-            steps {
-                script {
-                    sh 'git config --global --add safe.directory ${WORKSPACE}'
+    stage('Version Management') {
+        steps {
+            script {
+                sh """
+                    echo "Installing yq..."
+                    if wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_\$(dpkg --print-architecture) -O /usr/bin/yq && chmod +x /usr/bin/yq; then
+                        echo "yq was installed successfully."
+                    else
+                        echo "Failed to install yq."
+                        exit 1
+                    fi
+                """
 
-                    def versionFile = "${CHART_DIRECTORY}/version.txt"
-                    if (!fileExists(versionFile)) {
-                        echo "version.txt not found. Initializing with version 1.0.0."
-                        writeFile file: versionFile, text: "1.0.0"
-                    }
+                sh 'git config --global --add safe.directory ${WORKSPACE}'
 
-                    def version = readFile(versionFile).trim()
-                    echo "Current Version: ${version}"
+                def versionFile = "${CHART_DIRECTORY}/version.txt"
+                if (!fileExists(versionFile)) {
+                    echo "version.txt not found. Initializing with version 1.0.0."
+                    writeFile file: versionFile, text: "1.0.0"
+                }
 
-                    def versionParts = version.tokenize('-')
-                    def (major, minor, patch) = versionParts[0].tokenize('.').collect { it as int }
-                    patch += 1
+                def version = readFile(versionFile).trim()
+                echo "Current Version: ${version}"
 
-                    env.VERSION = "${major}.${minor}.${patch}-${env.BUILD_NUMBER}"
-                    echo "New Version: ${env.VERSION}"
+                def versionParts = version.tokenize('-')
+                def (major, minor, patch) = versionParts[0].tokenize('.').collect { it as int }
+                patch += 1
 
-                    writeFile file: versionFile, text: env.VERSION
+                env.VERSION = "${major}.${minor}.${patch}-${env.BUILD_NUMBER}"
+                echo "New Version: ${env.VERSION}"
 
-                    withCredentials([usernamePassword(credentialsId: 'github-creds-pat', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
-                        sh """
-                            git config --global user.email "ci@jenkins"
-                            git config --global user.name "Jenkins CI"
-                            git add ${versionFile}
-                            git commit -m "Update version to ${env.VERSION}" || echo "No changes to commit"
-                            git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git 3-create-jenkins-pipeline
-                        """
-                    }
+                writeFile file: versionFile, text: env.VERSION
+
+                sh """
+                    set -x
+                    yq -i '.goApp.container.tag = "\${VERSION}"' ${CHART_DIRECTORY}/values.yaml
+                    yq -i '.pythonApp.container.tag = "\${VERSION}"' ${CHART_DIRECTORY}/values.yaml
+                    yq -i '.nodeApp.container.tag = "\${VERSION}"' ${CHART_DIRECTORY}/values.yaml
+                    yq -i '.appVersion = "\${VERSION}"' ${CHART_DIRECTORY}/Chart.yaml
+                    yq -i '.version = "\${VERSION}"' ${CHART_DIRECTORY}/Chart.yaml
+                """
+
+                withCredentials([usernamePassword(credentialsId: 'github-creds-pat', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+                    sh """
+                        git config --global user.email "ci@jenkins"
+                        git config --global user.name "Jenkins CI"
+                        git add ${versionFile} ${CHART_DIRECTORY}/values.yaml ${CHART_DIRECTORY}/Chart.yaml
+                        git diff --cached --name-only
+                        git commit -m "Update version to \${VERSION}" || echo "No changes to commit"
+                        git push https://\${GIT_USERNAME}:\${GIT_PASSWORD}@github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git 5-improved-jenkins-version-update
+                    """
                 }
             }
         }
+    }
+
 
         stage('Login to DockerHub') {
             steps {
@@ -148,9 +169,7 @@ pipeline {
                 script {
                     sh """
                         helm upgrade --install ${RELEASE_NAME} ${CHART_DIRECTORY} \
-                            --set pythonApp.container.tag=${VERSION} \
-                            --set nodeApp.container.tag=${VERSION} \
-                            --set goApp.container.tag=${VERSION} \
+                            --values ${CHART_DIRECTORY}/values.yaml \
                             --namespace default
                     """
                 }
