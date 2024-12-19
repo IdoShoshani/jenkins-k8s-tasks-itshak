@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: {{ .Values.pythonApp.labels.app | default "python-app" }}
+  name: {{ .Values.pythonApp.name | default "python-app" }}
+spec:
+  containers:
+    - image: "{{ .Values.pythonApp.container.image | required "pythonApp.container.image is required" }}:{{ .Values.pythonApp.container.tag | default "latest" }}"
+      name: {{ .Values.pythonApp.container.name | default "python-app" }}
+      ports:
+        - containerPort: {{ .Values.pythonApp.container.port | default 5000 }}
+      resources:
+{{ toYaml .Values.pythonApp.container.resources | default "{}" | nindent 8 }}
