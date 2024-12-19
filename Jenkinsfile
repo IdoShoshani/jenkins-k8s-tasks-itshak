@@ -31,9 +31,9 @@ pipeline {
     }
     
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('docker-creds')
         DOCKER_USERNAME = 'idoshoshani123'
         CHART_DIRECTORY = "./helm-charts"
+        RELEASE_NAME = "my-app-release"
     }
     
     stages {
@@ -45,40 +45,29 @@ pipeline {
             }
         }
 
-
         stage('Version Management') {
             steps {
                 script {
-                    // Add the workspace to Git's safe directory list
                     sh 'git config --global --add safe.directory ${WORKSPACE}'
 
-                    // Define the path to version.txt
                     def versionFile = "${CHART_DIRECTORY}/version.txt"
-
-                    // Check if version.txt exists; if not, initialize it
                     if (!fileExists(versionFile)) {
                         echo "version.txt not found. Initializing with version 1.0.0."
                         writeFile file: versionFile, text: "1.0.0"
                     }
 
-                    // Read the current version
                     def version = readFile(versionFile).trim()
                     echo "Current Version: ${version}"
 
-                    // Split the version into major, minor, and patch
-                    def (major, minor, patch) = version.tokenize('.').collect { it as int }
-
-                    // Increment the patch version by default
+                    def versionParts = version.tokenize('-')
+                    def (major, minor, patch) = versionParts[0].tokenize('.').collect { it as int }
                     patch += 1
 
-                    // Set the new version
                     env.VERSION = "${major}.${minor}.${patch}-${env.BUILD_NUMBER}"
                     echo "New Version: ${env.VERSION}"
 
-                    // Save the new version back to version.txt
                     writeFile file: versionFile, text: env.VERSION
 
-                    // Commit the updated version.txt to Git with credentials
                     withCredentials([usernamePassword(credentialsId: 'github-creds-pat', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
                         sh """
                             git config --global user.email "ci@jenkins"
@@ -92,10 +81,11 @@ pipeline {
             }
         }
 
-        
         stage('Login to DockerHub') {
             steps {
-                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
+                    sh 'echo $DOCKERHUB_PASS | docker login -u $DOCKERHUB_USER --password-stdin'
+                }
             }
         }
         
@@ -111,7 +101,6 @@ pipeline {
                         }
                     }
                 }
-                
                 stage('Build Node App') {
                     steps {
                         dir('node-app') {
@@ -122,7 +111,6 @@ pipeline {
                         }
                     }
                 }
-                
                 stage('Build Go App') {
                     steps {
                         dir('go-app') {
@@ -135,23 +123,18 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Push Images') {
             steps {
                 script {
-                    // Push Python App
                     sh """
                         docker push ${DOCKER_USERNAME}/python-app:${VERSION}
                         docker push ${DOCKER_USERNAME}/python-app:latest
                     """
-                    
-                    // Push Node App
                     sh """
                         docker push ${DOCKER_USERNAME}/node-app:${VERSION}
                         docker push ${DOCKER_USERNAME}/node-app:latest
                     """
-                    
-                    // Push Go App
                     sh """
                         docker push ${DOCKER_USERNAME}/go-app:${VERSION}
                         docker push ${DOCKER_USERNAME}/go-app:latest
@@ -164,14 +147,16 @@ pipeline {
             steps {
                 script {
                     sh """
-                        helm upgrade --install my-app-release ${CHART_DIRECTORY} \
-                        --var
+                        helm upgrade --install ${RELEASE_NAME} ${CHART_DIRECTORY} \
+                            --set pythonApp.container.tag=${VERSION} \
+                            --set nodeApp.container.tag=${VERSION} \
+                            --set goApp.container.tag=${VERSION}
                     """
                 }
             }
         }
     }
-    
+
     post {
         always {
             sh 'docker logout'
