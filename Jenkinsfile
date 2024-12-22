@@ -125,7 +125,7 @@ pipeline {
                                 script {
                                     // Fetch version from values.yaml
                                     def appVersion = sh(
-                                        script: "yq eval '.${app.name}.container.tag' ${CHART_DIRECTORY}/values.yaml",
+                                        script: "yq eval '.${app.name}.container.tag' ../${CHART_DIRECTORY}/values.yaml",
                                         returnStdout: true
                                     ).trim()
                                     echo "Building and pushing ${app.name} with version: ${appVersion}"
