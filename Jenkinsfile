@@ -80,7 +80,7 @@ pipeline {
                         }
 
                         sh """
-                            yq -i ".${app}.container.tag = \\"${newTag}\\"" ${CHART_DIRECTORY}/values.yaml
+                            yq -i ".${app}.container.tag = ${newTag}" ${CHART_DIRECTORY}/values.yaml
                         """
                         
                         echo "Updated ${app} tag from ${currentTag} to ${newTag}"
