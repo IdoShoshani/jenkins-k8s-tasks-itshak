@@ -8,7 +8,7 @@ goApp:
     type: "ClusterIP"
   container:
     image: "idoshoshani123/go-app"
-    tag: "1.2.18.39"
+    tag: "1.2.18.42"
     name: "go-app"
     port: 8080
     resources: {}
@@ -22,7 +22,7 @@ nodeApp:
     type: "ClusterIP"
   container:
     image: "idoshoshani123/node-app"
-    tag: "7.0.7.39"
+    tag: "7.0.7.42"
     name: "node-app"
     port: 3000
     resources: {}
@@ -36,7 +36,7 @@ pythonApp:
     type: "ClusterIP"
   container:
     image: "idoshoshani123/python-app"
-    tag: "8.12.1.39"
+    tag: "8.12.1.42"
     name: "python-app"
     port: 5000
     resources: {}
