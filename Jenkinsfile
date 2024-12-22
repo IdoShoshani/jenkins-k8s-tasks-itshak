@@ -80,7 +80,7 @@ pipeline {
                         }
 
                         sh """
-                            yq -i ".${app}.container.tag = ${newTag}" ${CHART_DIRECTORY}/values.yaml
+                            yq -i ".${app}.container.tag = \\"${newTag}\\"" ${CHART_DIRECTORY}/values.yaml
                         """
                         
                         echo "Updated ${app} tag from ${currentTag} to ${newTag}"
@@ -149,7 +149,6 @@ pipeline {
                 script {
                     sh """
                         helm upgrade --install ${RELEASE_NAME} ${CHART_DIRECTORY} \
-                            --values ${CHART_DIRECTORY}/values.yaml \
                             --namespace default
                     """
                 }
