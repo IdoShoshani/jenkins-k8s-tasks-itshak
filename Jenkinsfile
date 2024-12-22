@@ -39,7 +39,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git branch: "5-improved-jenkins-version-update",
+                git branch: "main",
                     url: 'https://github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git',
                     credentialsId: 'github-creds-pat'
             }
@@ -98,7 +98,7 @@ pipeline {
                             git add ${CHART_DIRECTORY}/values.yaml
                             git diff --cached --name-only
                             git commit -m "Update application tags to build number \${BUILD_NUMBER}" || echo "No changes to commit"
-                            git push https://\${GIT_USERNAME}:\${GIT_PASSWORD}@github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git 5-improved-jenkins-version-update
+                            git push https://\${GIT_USERNAME}:\${GIT_PASSWORD}@github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git main
                         """
                     }
                 }
