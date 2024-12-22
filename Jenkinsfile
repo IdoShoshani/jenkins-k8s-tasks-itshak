@@ -63,27 +63,22 @@ pipeline {
                     def apps = ['goApp', 'nodeApp', 'pythonApp']
                     
                     apps.each { app ->
-                        // Read the current tag from the values.yaml file
                         def currentTag = sh(
                             script: "yq eval '.${app}.container.tag' ${CHART_DIRECTORY}/values.yaml",
                             returnStdout: true
                         ).trim()
 
-                        // Split the tag into parts
                         def tagParts = currentTag.tokenize('.')
                         def newTag = ""
 
                         if (tagParts.size() == 3) {
-                            // If the tag has only 3 parts, add the BUILD_NUMBER as the fourth part
                             newTag = "${tagParts[0]}.${tagParts[1]}.${tagParts[2]}.${env.BUILD_NUMBER}"
                         } else if (tagParts.size() == 4) {
-                            // If the tag has 4 parts, update the fourth part with BUILD_NUMBER
                             newTag = "${tagParts[0]}.${tagParts[1]}.${tagParts[2]}.${env.BUILD_NUMBER}"
                         } else {
                             error "Invalid tag format for ${app}: ${currentTag}"
                         }
 
-                        // Update the tag in the values.yaml file
                         sh """
                             yq -i ".${app}.container.tag = \\"${newTag}\\"" ${CHART_DIRECTORY}/values.yaml
                         """
@@ -105,8 +100,6 @@ pipeline {
             }
         }
 
-
-
         stage('Login to DockerHub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
@@ -114,57 +107,39 @@ pipeline {
                 }
             }
         }
-        
-        stage('Build Images') {
-            parallel {
-                stage('Build Python App') {
-                    steps {
-                        dir('python-app') {
-                            sh """
-                                docker build -t ${DOCKER_USERNAME}/python-app:${VERSION} .
-                                docker tag ${DOCKER_USERNAME}/python-app:${VERSION} ${DOCKER_USERNAME}/python-app:latest
-                            """
-                        }
-                    }
-                }
-                stage('Build Node App') {
-                    steps {
-                        dir('node-app') {
-                            sh """
-                                docker build -t ${DOCKER_USERNAME}/node-app:${VERSION} .
-                                docker tag ${DOCKER_USERNAME}/node-app:${VERSION} ${DOCKER_USERNAME}/node-app:latest
-                            """
-                        }
-                    }
-                }
-                stage('Build Go App') {
-                    steps {
-                        dir('go-app') {
-                            sh """
-                                docker build -t ${DOCKER_USERNAME}/go-app:${VERSION} .
-                                docker tag ${DOCKER_USERNAME}/go-app:${VERSION} ${DOCKER_USERNAME}/go-app:latest
-                            """
-                        }
-                    }
-                }
-            }
-        }
 
-        stage('Push Images') {
+        stage('Build and Push Images') {
             steps {
                 script {
-                    sh """
-                        docker push ${DOCKER_USERNAME}/python-app:${VERSION}
-                        docker push ${DOCKER_USERNAME}/python-app:latest
-                    """
-                    sh """
-                        docker push ${DOCKER_USERNAME}/node-app:${VERSION}
-                        docker push ${DOCKER_USERNAME}/node-app:latest
-                    """
-                    sh """
-                        docker push ${DOCKER_USERNAME}/go-app:${VERSION}
-                        docker push ${DOCKER_USERNAME}/go-app:latest
-                    """
+                    // Define the apps and their respective directories
+                    def apps = [
+                        [name: 'pythonApp', dir: 'python-app'],
+                        [name: 'nodeApp', dir: 'node-app'],
+                        [name: 'goApp', dir: 'go-app']
+                    ]
+                    def parallelStages = [:]
+                    
+                    apps.each { app ->
+                        parallelStages[app.name] = {
+                            dir(app.dir) {
+                                script {
+                                    // Fetch version from values.yaml
+                                    def appVersion = sh(
+                                        script: "yq eval '.${app.name}.container.tag' ${CHART_DIRECTORY}/values.yaml",
+                                        returnStdout: true
+                                    ).trim()
+                                    echo "Building and pushing ${app.name} with version: ${appVersion}"
+                                    sh """
+                                        docker build -t ${DOCKER_USERNAME}/${app.dir}:${appVersion} .
+                                        docker tag ${DOCKER_USERNAME}/${app.dir}:${appVersion} ${DOCKER_USERNAME}/${app.dir}:latest
+                                        docker push ${DOCKER_USERNAME}/${app.dir}:${appVersion}
+                                        docker push ${DOCKER_USERNAME}/${app.dir}:latest
+                                    """
+                                }
+                            }
+                        }
+                    }
+                    parallel parallelStages
                 }
             }
         }
@@ -190,7 +165,7 @@ pipeline {
             echo 'Pipeline failed! Check the logs for details.'
         }
         success {
-            echo "Successfully built, pushed, and deployed version: ${VERSION}"
+            echo "Successfully built, pushed, and deployed applications."
         }
     }
 }
