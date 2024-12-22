@@ -36,7 +36,7 @@ pythonApp:
     type: "ClusterIP"
   container:
     image: "idoshoshani123/python-app"
-    tag: 8.12.1.39
+    tag: 9.12.1.39
     name: "python-app"
     port: 5000
     resources: {}
