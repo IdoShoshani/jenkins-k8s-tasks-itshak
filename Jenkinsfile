@@ -45,60 +45,66 @@ pipeline {
             }
         }
 
-    stage('Version Management') {
-        steps {
-            script {
-                sh """
-                    echo "Installing yq..."
-                    if wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_\$(dpkg --print-architecture) -O /usr/bin/yq && chmod +x /usr/bin/yq; then
-                        echo "yq was installed successfully."
-                    else
-                        echo "Failed to install yq."
-                        exit 1
-                    fi
-                """
-
-                sh 'git config --global --add safe.directory ${WORKSPACE}'
-
-                def versionFile = "${CHART_DIRECTORY}/version.txt"
-                if (!fileExists(versionFile)) {
-                    echo "version.txt not found. Initializing with version 1.0.0."
-                    writeFile file: versionFile, text: "1.0.0"
-                }
-
-                def version = readFile(versionFile).trim()
-                echo "Current Version: ${version}"
-
-                def versionParts = version.tokenize('-')
-                def (major, minor, patch) = versionParts[0].tokenize('.').collect { it as int }
-                patch += 1
-
-                env.VERSION = "${major}.${minor}.${patch}-${env.BUILD_NUMBER}"
-                echo "New Version: ${env.VERSION}"
-
-                writeFile file: versionFile, text: env.VERSION
-
-                sh """
-                    yq -i ".goApp.container.tag = \\"${VERSION}\\"" ${CHART_DIRECTORY}/values.yaml
-                    yq -i ".pythonApp.container.tag = \\"${VERSION}\\"" ${CHART_DIRECTORY}/values.yaml
-                    yq -i ".nodeApp.container.tag = \\"${VERSION}\\"" ${CHART_DIRECTORY}/values.yaml
-                    yq -i ".appVersion = \\"${VERSION}\\"" ${CHART_DIRECTORY}/Chart.yaml
-                    yq -i ".version = \\"${VERSION}\\"" ${CHART_DIRECTORY}/Chart.yaml
-                """
-
-                withCredentials([usernamePassword(credentialsId: 'github-creds-pat', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+        stage('Version Management') {
+            steps {
+                script {
                     sh """
-                        git config --global user.email "ci@jenkins"
-                        git config --global user.name "Jenkins CI"
-                        git add ${versionFile} ${CHART_DIRECTORY}/values.yaml ${CHART_DIRECTORY}/Chart.yaml
-                        git diff --cached --name-only
-                        git commit -m "Update version to \${VERSION}" || echo "No changes to commit"
-                        git push https://\${GIT_USERNAME}:\${GIT_PASSWORD}@github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git 5-improved-jenkins-version-update
+                        echo "Installing yq..."
+                        if wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_\$(dpkg --print-architecture) -O /usr/bin/yq && chmod +x /usr/bin/yq; then
+                            echo "yq was installed successfully."
+                        else
+                            echo "Failed to install yq."
+                            exit 1
+                        fi
                     """
+                    
+                    sh 'git config --global --add safe.directory ${WORKSPACE}'
+                    
+                    def apps = ['goApp', 'nodeApp', 'pythonApp']
+                    
+                    apps.each { app ->
+                        // Read the current tag from the values.yaml file
+                        def currentTag = sh(
+                            script: "yq eval '.${app}.container.tag' ${CHART_DIRECTORY}/values.yaml",
+                            returnStdout: true
+                        ).trim()
+
+                        // Split the tag into parts
+                        def tagParts = currentTag.tokenize('.')
+                        def newTag = ""
+
+                        if (tagParts.size() == 3) {
+                            // If the tag has only 3 parts, add the BUILD_NUMBER as the fourth part
+                            newTag = "${tagParts[0]}.${tagParts[1]}.${tagParts[2]}.${env.BUILD_NUMBER}"
+                        } else if (tagParts.size() == 4) {
+                            // If the tag has 4 parts, update the fourth part with BUILD_NUMBER
+                            newTag = "${tagParts[0]}.${tagParts[1]}.${tagParts[2]}.${env.BUILD_NUMBER}"
+                        } else {
+                            error "Invalid tag format for ${app}: ${currentTag}"
+                        }
+
+                        // Update the tag in the values.yaml file
+                        sh """
+                            yq -i ".${app}.container.tag = \\"${newTag}\\"" ${CHART_DIRECTORY}/values.yaml
+                        """
+                        
+                        echo "Updated ${app} tag from ${currentTag} to ${newTag}"
+                    }
+                    
+                    withCredentials([usernamePassword(credentialsId: 'github-creds-pat', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+                        sh """
+                            git config --global user.email "ci@jenkins"
+                            git config --global user.name "Jenkins CI"
+                            git add ${CHART_DIRECTORY}/values.yaml
+                            git diff --cached --name-only
+                            git commit -m "Update application tags to build number \${BUILD_NUMBER}" || echo "No changes to commit"
+                            git push https://\${GIT_USERNAME}:\${GIT_PASSWORD}@github.com/IdoShoshani/jenkins-k8s-tasks-itshak.git 5-improved-jenkins-version-update
+                        """
+                    }
                 }
             }
         }
-    }
+
 
 
         stage('Login to DockerHub') {
