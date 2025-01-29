@@ -1,0 +1,42 @@
+goApp:
+  name: "go-app"
+  labels:
+    app: "go-app"
+  service:
+    port: 8080
+    targetPort: 8080
+    type: "ClusterIP"
+  container:
+    image: "idoshoshani123/go-app"
+    tag: "1.2.18.42"
+    name: "go-app"
+    port: 8080
+    resources: {}
+nodeApp:
+  name: "node-app"
+  labels:
+    app: "node-app"
+  service:
+    port: 3000
+    targetPort: 3000
+    type: "ClusterIP"
+  container:
+    image: "idoshoshani123/node-app"
+    tag: "7.0.7.42"
+    name: "node-app"
+    port: 3000
+    resources: {}
+pythonApp:
+  name: "python-app"
+  labels:
+    app: "python-app"
+  service:
+    port: 5000
+    targetPort: 5000
+    type: "ClusterIP"
+  container:
+    image: "idoshoshani123/python-app"
+    tag: "8.12.1.42"
+    name: "python-app"
+    port: 5000
+    resources: {}
