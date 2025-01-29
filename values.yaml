@@ -1,0 +1,17 @@
+ido:
+  name:
+  image:
+    name: app_01
+    tag: 0.3
+
+nadav:
+  name:
+  image:
+    name: app_02
+    tag: 0.7
+
+noga:
+  name:
+  image:
+    name: app_03
+    tag: 0.9
